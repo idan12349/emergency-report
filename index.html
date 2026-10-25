@@ -1,0 +1,605 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow">
+<title>דיווח מצב</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;700;800;900&display=swap" rel="stylesheet">
+<style>
+
+  :root {
+    --paper: #f7f6f2; --card: #ffffff; --ink: #121212; --muted: #77766f; --line: #e3e1da;
+    --slot: #2346f5; --slot-bg: #e9edff; --slot-ink: #1530b8;
+    --ok: #11804a; --ok-bg: #e1f3e8; --bad: #cc2417; --bad-bg: #fde5e1;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; background: var(--paper); color: var(--ink); overflow-x: clip; }
+  body { font-family: 'Heebo', system-ui, sans-serif; font-size: 16px; line-height: 1.4; -webkit-font-smoothing: antialiased; }
+  button, input { font: inherit; color: inherit; }
+  .app { max-width: 440px; margin: 0 auto; min-height: 100dvh; display: flex; flex-direction: column; padding: 0 18px; }
+
+
+  .eyebrow { font-size: 13px; color: var(--muted); font-weight: 500; margin-top: 18px; display: flex; justify-content: space-between; align-items: center; }
+  .live { display: inline-flex; align-items: center; gap: 6px; color: var(--bad); font-weight: 700; }
+  .live i { width: 7px; height: 7px; border-radius: 50%; background: currentColor; animation: pulse 1.4s infinite; }
+  @keyframes pulse { 50% { opacity: .25; } }
+
+  /* ===== קונספט 1: משפט ===== */
+  .sentence { font-size: 30px; font-weight: 800; line-height: 1.6; letter-spacing: -.01em; margin: 28px 0 0; }
+  .slot { display: inline-block; border: 0; cursor: pointer; font-weight: 800; padding: 0 12px; margin: 2px 0; border-radius: 12px; line-height: 1.35; transition: background .25s, color .25s; vertical-align: baseline; }
+  .slot.empty { background: transparent; color: var(--muted); box-shadow: inset 0 0 0 2px var(--line); border-radius: 12px; font-weight: 500; }
+  .slot.filled { background: var(--slot-bg); color: var(--slot-ink); }
+  .slot.ok { background: var(--ok-bg); color: var(--ok); }
+  .slot.bad { background: var(--bad); color: #fff; }
+  .slot.pop { animation: pop .45s ease-out; }
+  @keyframes pop { 0% { transform: scale(.85); } 60% { transform: scale(1.06); } 100% { transform: scale(1); } }
+  .ai-note { margin-top: 16px; font-size: 15px; color: var(--muted); min-height: 22px; display: flex; gap: 8px; align-items: center; }
+  .ai-note b { color: var(--ink); font-weight: 700; }
+  .spark { width: 18px; height: 18px; flex: none; }
+  .thinking .spark { animation: spin 1s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .suggest { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 18px; }
+  .chip { border: 1.5px solid var(--line); background: var(--card); border-radius: 99px; padding: 9px 14px; font-size: 15px; font-weight: 500; cursor: pointer; }
+  .spacer { flex: 1; min-height: 24px; }
+  .dock { position: sticky; bottom: 0; padding: 12px 0 calc(14px + env(safe-area-inset-bottom)); background: linear-gradient(transparent, var(--paper) 22%); }
+  .confirm { width: 100%; border: 0; border-radius: 16px; padding: 17px; font-size: 18px; font-weight: 800; background: var(--ink); color: #fff; cursor: pointer; margin-bottom: 10px; }
+  .confirm.help { background: var(--bad); }
+  .composer { display: flex; gap: 8px; align-items: center; background: var(--card); border: 1.5px solid var(--line); border-radius: 18px; padding: 6px 6px 6px 8px; }
+  .composer input { flex: 1; border: 0; background: transparent; padding: 10px 8px; outline: none; font-size: 16px; }
+  .icon-btn { width: 42px; height: 42px; border: 0; border-radius: 12px; display: grid; place-items: center; cursor: pointer; flex: none; }
+  .icon-btn.send { background: var(--slot); color: #fff; }
+  .icon-btn.mic { background: transparent; color: var(--muted); }
+  .hint { font-size: 12.5px; color: var(--muted); margin-top: 8px; text-align: center; }
+
+  /* גיליון בחירה לחריץ */
+  .scrim { position: fixed; inset: 0; background: rgba(18,18,18,.35); z-index: 20; display: flex; align-items: flex-end; justify-content: center; }
+  .sheet { background: var(--card); width: 100%; max-width: 440px; border-radius: 22px 22px 0 0; padding: 10px 18px calc(20px + env(safe-area-inset-bottom)); max-height: 80dvh; overflow-y: auto; animation: up .22s ease-out; }
+  @keyframes up { from { transform: translateY(40px); opacity: 0; } }
+  .grab { width: 44px; height: 5px; border-radius: 9px; background: var(--line); margin: 0 auto 14px; }
+  .sheet h3 { margin: 0 0 12px; font-size: 20px; font-weight: 800; }
+  .row-opt { display: flex; align-items: center; gap: 12px; width: 100%; border: 0; background: var(--paper); border-radius: 14px; padding: 15px 16px; margin-bottom: 8px; font-size: 17px; font-weight: 700; cursor: pointer; text-align: right; }
+  .row-opt .g { width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; background: var(--card); flex: none; }
+  .row-opt.sel { background: var(--slot-bg); color: var(--slot-ink); }
+  .search { width: 100%; border: 1.5px solid var(--line); border-radius: 14px; padding: 13px 14px; margin: 10px 0 4px; font-size: 16px; }
+  .gps { width: 100%; border: 0; border-radius: 14px; padding: 15px; background: var(--ink); color: #fff; font-weight: 800; font-size: 16px; cursor: pointer; }
+  .zlist { columns: 2; column-gap: 8px; margin-top: 10px; }
+  .zlist button { display: block; width: 100%; break-inside: avoid; border: 0; background: var(--paper); border-radius: 10px; padding: 9px 10px; margin-bottom: 6px; text-align: right; font-size: 14.5px; cursor: pointer; }
+  .region { font-size: 12.5px; color: var(--muted); font-weight: 700; margin: 8px 2px 6px; column-span: all; }
+
+  .done-mark { width: 56px; height: 56px; border-radius: 50%; background: var(--ok); color: #fff; display: grid; place-items: center; font-size: 28px; font-weight: 900; margin-top: 36px; }
+  .done-mark.help { background: var(--bad); }
+  .done-meta { color: var(--muted); margin-top: 14px; font-size: 15px; }
+  .sos { background: var(--bad-bg); color: var(--bad); border-radius: 14px; padding: 12px 14px; margin-top: 18px; font-weight: 500; }
+  .sos a { color: var(--bad); font-weight: 800; }
+  .link { background: none; border: 0; color: var(--slot); font-weight: 700; padding: 12px 0; cursor: pointer; font-size: 16px; }
+
+    svg.i { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+  .app.wide { max-width: 1100px; padding-bottom: 40px; }
+  .err-line { color: var(--bad); font-size: 14px; font-weight: 500; margin-top: 8px; }
+  .center { text-align: center; padding: 70px 16px; color: var(--muted); }
+  .center h1 { color: var(--ink); font-size: 24px; margin: 0 0 6px; }
+  .last { font-size: 13.5px; color: var(--muted); margin-top: 6px; }
+
+  /* ===== דשבורד ===== */
+  .d-top { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; justify-content: space-between; margin-top: 18px; }
+  .d-top h1 { font-size: 30px; font-weight: 900; margin: 0; letter-spacing: -.01em; }
+  .sub { color: var(--muted); font-size: 14px; margin: 2px 0 0; }
+  .actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .actions select { border: 1.5px solid var(--line); background: var(--card); border-radius: 12px; padding: 9px 12px; font: inherit; font-size: 14px; }
+  .btn { border: 1.5px solid var(--line); background: var(--card); color: var(--ink); border-radius: 12px; padding: 9px 14px; font-weight: 700; font-size: 14px; cursor: pointer; font-family: inherit; }
+  .btn.dark { background: var(--ink); border-color: var(--ink); color: #fff; }
+  .btn.danger { background: var(--bad); border-color: var(--bad); color: #fff; }
+  .btn:disabled { opacity: .45; cursor: default; }
+  .banner { border-radius: 14px; padding: 12px 16px; margin-top: 14px; font-weight: 700; display: flex; gap: 10px; align-items: center; }
+  .banner.on { background: var(--bad); color: #fff; }
+  .banner.off { background: var(--card); color: var(--muted); font-weight: 500; box-shadow: inset 0 0 0 1.5px var(--line); }
+  .banner i { width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+  .banner.on i { animation: pulse 1.4s infinite; }
+  .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-top: 14px; }
+  .kpi { background: var(--card); border-radius: 18px; padding: 16px 18px; box-shadow: inset 0 0 0 1.5px var(--line); }
+  .kpi .n { font-size: 34px; font-weight: 900; line-height: 1.1; font-variant-numeric: tabular-nums; }
+  .kpi .n span { font-size: 16px; font-weight: 500; color: var(--muted); }
+  .kpi .l { color: var(--muted); font-size: 14px; }
+  .kpi.bad .n { color: var(--bad); }
+  .kpi.main { background: var(--ink); color: #fff; box-shadow: none; }
+  .kpi.main .l, .kpi.main .n span { color: rgba(255,255,255,.7); }
+  .meter { height: 8px; background: var(--line); border-radius: 99px; overflow: hidden; }
+  .meter i { display: block; height: 100%; background: var(--slot); border-radius: 99px; }
+  .kpi.main .meter { background: rgba(255,255,255,.2); margin-top: 10px; }
+  .kpi.main .meter i { background: #fff; }
+  .card { background: var(--card); border-radius: 20px; padding: 18px 20px; margin-top: 14px; box-shadow: inset 0 0 0 1.5px var(--line); }
+  .card h2 { font-size: 18px; font-weight: 800; margin: 0 0 12px; }
+  .card.alert { box-shadow: inset 0 0 0 2px var(--bad); }
+  .card.alert h2 { color: var(--bad); }
+  .cols { display: grid; grid-template-columns: 1fr; gap: 0 14px; }
+  @media (min-width: 860px) { .cols { grid-template-columns: 1fr 1fr; } }
+  .locs { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; }
+  .loc-tile { border: 0; text-align: right; background: var(--paper); border-radius: 16px; padding: 14px; cursor: pointer; font-family: inherit; color: var(--ink); display: flex; gap: 12px; align-items: center; }
+  .loc-tile.on { background: var(--slot-bg); color: var(--slot-ink); }
+  .loc-tile .g { width: 40px; height: 40px; border-radius: 12px; background: var(--card); display: grid; place-items: center; flex: none; }
+  .loc-tile .n { font-size: 26px; font-weight: 900; line-height: 1; font-variant-numeric: tabular-nums; }
+  .loc-tile .l { font-size: 14px; font-weight: 500; }
+  .drill { margin-top: 12px; background: var(--paper); border-radius: 16px; padding: 4px 14px; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th { text-align: right; color: var(--muted); font-weight: 500; padding: 6px; border-bottom: 1.5px solid var(--line); }
+  td { padding: 9px 6px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+  tr.unit td { font-weight: 800; }
+  td.num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+  td.bar { width: 34%; }
+  .pill { display: inline-block; padding: 2px 9px; border-radius: 99px; font-size: 12.5px; font-weight: 700; }
+  .pill.bad { background: var(--bad-bg); color: var(--bad); }
+  .pill.mut { background: var(--paper); color: var(--muted); }
+  .person { display: flex; gap: 10px; align-items: center; justify-content: space-between; padding: 11px 0; border-bottom: 1px solid var(--line); }
+  .person:last-child { border-bottom: 0; }
+  .person .who { font-weight: 800; }
+  .person .meta { font-size: 13px; color: var(--muted); }
+  .person .acts { display: flex; gap: 6px; align-items: center; flex: none; }
+  .person a { color: var(--slot-ink); text-decoration: none; font-weight: 700; background: var(--slot-bg); padding: 6px 11px; border-radius: 10px; font-size: 14px; }
+  @media (max-width: 560px) { .person { flex-wrap: wrap; } .person .acts { width: 100%; } .loc-tile { padding: 12px; gap: 10px; } .loc-tile .g { width: 34px; height: 34px; } }
+  details { border-bottom: 1px solid var(--line); }
+  details:last-child { border-bottom: 0; }
+  summary { cursor: pointer; padding: 11px 0; font-weight: 800; display: flex; justify-content: space-between; list-style: none; }
+  summary::-webkit-details-marker { display: none; }
+  .zone { display: grid; grid-template-columns: 120px 1fr 34px; gap: 10px; align-items: center; font-size: 14px; font-weight: 500; }
+  details.zd { border: 0; } details.zd[open] { background: var(--paper); border-radius: 14px; padding: 0 10px 4px; margin: 4px -10px; }
+  .d-empty { color: var(--muted); font-size: 14px; padding: 6px 0; }
+  .foot { color: var(--muted); font-size: 13px; margin-top: 18px; text-align: center; }
+  dialog { border: 0; border-radius: 20px; background: var(--card); color: var(--ink); padding: 22px; width: min(420px, 92vw); font-family: inherit; }
+  dialog::backdrop { background: rgba(18,18,18,.35); }
+  dialog select, dialog input { width: 100%; border: 1.5px solid var(--line); border-radius: 12px; padding: 11px; font: inherit; margin-bottom: 4px; background: var(--card); }
+  dialog label { display: block; font-weight: 700; margin: 12px 0 6px; }
+</style>
+</head>
+<body>
+<div class="app" id="app"><div class="center">טוען…</div></div>
+
+<dialog id="proxyDlg">
+  <form method="dialog" id="proxyForm">
+    <h2 style="margin:0 0 4px;font-size:20px" id="proxyTitle">דיווח במקום</h2>
+    <p class="sub">יסומן "דווח ע"י מפקד". אם האדם ידווח בעצמו אחר כך, הדיווח שלו יוצג.</p>
+    <label>איפה</label><select name="location" id="proxyLoc"></select>
+    <label>אזור (אם לא בבסיס)</label><select name="zone" id="proxyZone"></select>
+    <label>מצב</label><select name="status"><option>תקין</option><option>זקוק לסיוע</option></select>
+    <label>הערה</label><input type="text" name="note" maxlength="200" placeholder="רשות">
+    <div class="err-line" id="proxyErr"></div>
+    <div style="display:flex;gap:8px;margin-top:16px">
+      <button class="btn dark" value="save" id="proxySave">שמירה</button>
+      <button class="btn" value="cancel" formnovalidate>ביטול</button>
+    </div>
+  </form>
+</dialog>
+
+<script>
+/* ===== הגדרה: כתובת ה-Web App של Apps Script ===== */
+const API_URL = 'https://script.google.com/macros/s/AKfycbxGb1XAfxTfVBNvBluPC3IjYATOggZ__inY_jOfoqeuZxYhcrmNYmH5eFzKWuCcw53LXg/exec';
+
+const ZONE_CENTERS = {
+  'גליל עליון': [33.02, 35.55], 'קו העימות': [33.07, 35.30], 'גולן צפון': [33.15, 35.75], 'גולן דרום': [32.85, 35.75],
+  'גליל תחתון': [32.76, 35.48], 'מרכז הגליל': [32.90, 35.28], 'המפרץ': [32.88, 35.09], 'חיפה': [32.80, 34.99],
+  'הכרמל': [32.68, 34.97], 'מנשה': [32.47, 34.93], 'ואדי ערה': [32.50, 35.08], 'עמק יזרעאל': [32.62, 35.28],
+  'בקעת בית שאן': [32.50, 35.50], 'השרון': [32.25, 34.88], 'ירקון': [32.09, 34.92], 'דן': [32.05, 34.79],
+  'השפלה': [31.93, 34.80], 'שפלת יהודה': [31.75, 34.96], 'ירושלים': [31.78, 35.21], 'יהודה': [31.55, 35.10],
+  'שומרון': [32.15, 35.18], 'בקעת הירדן': [32.00, 35.45], 'ים המלח': [31.35, 35.38], 'לכיש': [31.68, 34.70],
+  'מערב לכיש': [31.66, 34.57], 'עוטף עזה': [31.45, 34.50], 'מערב הנגב': [31.28, 34.55], 'מרכז הנגב': [31.25, 34.80],
+  'דרום הנגב': [30.85, 34.85], 'ערבה': [30.45, 35.15], 'אילת': [29.56, 34.95]
+};
+const ZONES = Object.keys(ZONE_CENTERS);
+const REGIONS = {
+  'צפון': ['גליל עליון', 'קו העימות', 'גולן צפון', 'גולן דרום', 'גליל תחתון', 'מרכז הגליל', 'המפרץ', 'חיפה', 'הכרמל', 'מנשה', 'ואדי ערה', 'עמק יזרעאל', 'בקעת בית שאן'],
+  'מרכז': ['השרון', 'ירקון', 'דן', 'השפלה', 'שפלת יהודה'],
+  'ירושלים, יהודה ושומרון': ['ירושלים', 'יהודה', 'שומרון', 'בקעת הירדן', 'ים המלח'],
+  'דרום': ['לכיש', 'מערב לכיש', 'עוטף עזה', 'מערב הנגב', 'מרכז הנגב', 'דרום הנגב', 'ערבה', 'אילת']
+};
+const zoneOptions = sel => Object.entries(REGIONS).map(([r, zs]) => `<optgroup label="${r}">${zs.map(z => `<option ${sel === z ? 'selected' : ''}>${z}</option>`).join('')}</optgroup>`).join('');
+/* חיפוש לפי יישוב או אזור. מחזיר עד 6 התאמות: [מה שהוקלד, אזור] */
+function zoneSearch(q) {
+  q = q.trim(); if (q.length < 2) return [];
+  const hits = [];
+  for (const z of ZONES) if (z.includes(q)) hits.push([z, z]);
+  for (const [c, z] of Object.entries(CITIES)) if (c.startsWith(q) || (q.length > 2 && c.includes(q))) hits.push([c, z]);
+  const seen = new Set();
+  return hits.filter(([l, z]) => !seen.has(l) && seen.add(l)).slice(0, 6);
+}
+function nearestZone(lat, lng) {
+  if (lat < 29.3 || lat > 33.5 || lng < 34.1 || lng > 35.95) return null;
+  let best = null, bestD = Infinity;
+  for (const [z, [a, b]] of Object.entries(ZONE_CENTERS)) {
+    const d = (lat - a) ** 2 + ((lng - b) * Math.cos(lat * Math.PI / 180)) ** 2;
+    if (d < bestD) { bestD = d; best = z; }
+  }
+  return best;
+}
+
+const CITIES = {
+  'תל אביב': 'דן', 'יפו': 'דן', 'רמת גן': 'דן', 'גבעתיים': 'דן', 'בני ברק': 'דן', 'חולון': 'דן', 'בת ים': 'דן',
+  'פתח תקווה': 'ירקון', 'פתח תקוה': 'ירקון', 'ראש העין': 'ירקון', 'אלעד': 'ירקון',
+  'נתניה': 'השרון', 'כפר סבא': 'השרון', 'רעננה': 'השרון', 'הרצליה': 'השרון', 'הוד השרון': 'השרון', 'רמת השרון': 'השרון',
+  'ראשון לציון': 'השפלה', 'ראשון': 'השפלה', 'רחובות': 'השפלה', 'נס ציונה': 'השפלה', 'לוד': 'השפלה', 'רמלה': 'השפלה',
+  'מודיעין': 'השפלה', 'יבנה': 'השפלה', 'גדרה': 'השפלה', 'בית שמש': 'שפלת יהודה',
+  'ירושלים': 'ירושלים', 'מעלה אדומים': 'ירושלים', 'מבשרת': 'ירושלים',
+  'חיפה': 'חיפה', 'נשר': 'חיפה', 'טירת כרמל': 'הכרמל', 'זכרון יעקב': 'הכרמל',
+  'קריית ביאליק': 'המפרץ', 'קריית מוצקין': 'המפרץ', 'קריית אתא': 'המפרץ', 'קריית ים': 'המפרץ', 'הקריות': 'המפרץ', 'עכו': 'המפרץ',
+  'חדרה': 'מנשה', 'פרדס חנה': 'מנשה', 'אום אל פחם': 'ואדי ערה', 'עפולה': 'עמק יזרעאל', 'יקנעם': 'עמק יזרעאל',
+  'בית שאן': 'בקעת בית שאן', 'טבריה': 'גליל תחתון', 'נצרת': 'מרכז הגליל', 'כרמיאל': 'מרכז הגליל',
+  'צפת': 'גליל עליון', 'קריית שמונה': 'קו העימות', 'מטולה': 'קו העימות', 'קצרין': 'גולן צפון',
+  'אריאל': 'שומרון', 'אשדוד': 'לכיש', 'קריית גת': 'לכיש', 'אשקלון': 'מערב לכיש', 'שדרות': 'עוטף עזה',
+  'נתיבות': 'מערב הנגב', 'אופקים': 'מערב הנגב', 'באר שבע': 'מרכז הנגב', 'דימונה': 'דרום הנגב', 'ירוחם': 'דרום הנגב',
+  'מצפה רמון': 'דרום הנגב', 'אילת': 'אילת', 'ערד': 'ים המלח'
+};
+
+
+/* ---------- סוגי מיקום – הלב של תמונת המצב ---------- */
+const LOCS = [
+  { v: 'בבסיס', say: 'בבסיס', sub: 'ביחידה או בבסיס אחר', icon: 'base' },
+  { v: 'בבית', say: 'בבית', sub: 'בבית שלי', icon: 'home' },
+  { v: 'אצל משפחה או חברים', say: 'אצל משפחה/חברים', sub: 'לא בבית שלי', icon: 'people' },
+  { v: 'בדרכים', say: 'בדרכים', sub: 'בנסיעה, בתחבורה ציבורית', icon: 'road' },
+  { v: 'במקום אחר', say: 'במקום אחר', sub: 'עבודה, לימודים, בילוי', icon: 'pin' }
+];
+const ICONS = {
+  base: '<path d="M4 21V9l8-5 8 5v12"/><path d="M9 21v-6h6v6"/><path d="M12 4V1"/>',
+  home: '<path d="M3 11l9-7 9 7"/><path d="M5 10v11h14V10"/><path d="M10 21v-6h4v6"/>',
+  people: '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.8-3.6 3.4-5.5 6.5-5.5s5.7 1.9 6.5 5.5"/><circle cx="17" cy="9" r="2.6"/><path d="M16.5 14.6c2.6.2 4.4 1.9 5 5.4"/>',
+  road: '<path d="M8 3L4 21"/><path d="M16 3l4 18"/><path d="M12 4v3M12 11v3M12 18v2"/>',
+  pin: '<path d="M12 21s-7-6.2-7-11.5A7 7 0 0 1 19 9.5C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/>',
+  send: '<path d="M20 12H5"/><path d="M11 6l-6 6 6 6"/>',
+  mic: '<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0"/><path d="M12 18v3"/>',
+  spark: '<path d="M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2.5 2.5M15.5 15.5L18 18M6 18l2.5-2.5M15.5 8.5L18 6"/>',
+  gps: '<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/><circle cx="12" cy="12" r="7"/>'
+};
+const ico = (k, cls = 'i') => `<svg class="${cls}" viewBox="0 0 24 24">${ICONS[k]}</svg>`;
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const $ = s => document.querySelector(s);
+const app = $('#app');
+
+/* ---------- "AI" מדומה: מפרק טקסט חופשי לשלושה שדות. במערכת האמיתית – ה-Agent של היחידה ---------- */
+function understand(text) {
+  let s = ' ' + text.replace(/[״"׳'.,!?]/g, ' ').replace(/\s+/g, ' ').trim() + ' ';
+  const out = {}; let place = '';
+  for (const z of [...ZONES].sort((a, b) => b.length - a.length)) if (s.includes(z)) { out.zone = z; place = z; s = s.replace(z, ' '); break; }
+  if (!out.zone) for (const c of Object.keys(CITIES).sort((a, b) => b.length - a.length)) if (s.includes(c)) { out.zone = CITIES[c]; place = c; s = s.replace(c, ' '); break; }
+  if (/(לא בסדר|לא טוב|לא בטוח|עזרה|סיוע|פצוע|נפגע|זקוק|מצוקה)/.test(s)) out.status = 'זקוק לסיוע';
+  else if (/(בסדר|תקין|הכל טוב|הכול טוב|אני טוב|אני טובה|שלם|בטוח|מוגן|מוגנת)/.test(s)) out.status = 'בסדר';
+  if (/(בבסיס|ביחידה|בבס| בסיס )/.test(s)) out.loc = 'בבסיס';
+  else if (/(אצל ההורים|אצל המשפחה|אצל אמא|אצל אבא|אצל סבתא|אצל חבר|אצל חברה|אצל ה|אצל)/.test(s)) out.loc = 'אצל משפחה או חברים';
+  else if (/(בדרך|בנסיעה|באוטו|ברכב|באוטובוס|ברכבת|נוסע|נוסעת)/.test(s)) out.loc = 'בדרכים';
+  else if (/(בבית|הביתה|בדירה| בית )/.test(s)) out.loc = 'בבית';
+  else if (/(בעבודה|בלימודים|באוניברסיטה|בקניון|בים|בטיול|במסעדה)/.test(s)) out.loc = 'במקום אחר';
+  return { got: out, place };
+}
+
+
+function zonePicker() {
+  return `<h3>באיזה אזור?</h3>
+    <button class="gps" data-gps>${ico('gps')} זהה לפי המיקום שלי</button>
+    <input class="search" data-q placeholder="או הקלד יישוב, למשל חולון" autocomplete="off">
+    <div class="suggest" data-hits style="margin-top:8px"></div>
+    <div class="zlist">${Object.entries(REGIONS).map(([r, zs]) => `<div class="region">${r}</div>${zs.map(z => `<button data-v="${z}">${z}</button>`).join('')}`).join('')}</div>`;
+}
+function bindZonePicker(root, pick) {
+  const q = root.querySelector('[data-q]'); if (!q) return;
+  q.oninput = () => {
+    const hits = zoneSearch(q.value);
+    const box = root.querySelector('[data-hits]');
+    box.innerHTML = hits.map(([l, z]) => `<button class="chip" data-v="${z}">${esc(l)}${l !== z ? ' · ' + esc(z) : ''}</button>`).join('');
+    box.querySelectorAll('[data-v]').forEach(b => b.onclick = () => pick(b.dataset.v));
+  };
+  root.querySelector('[data-gps]').onclick = e => {
+    const btn = e.currentTarget; btn.textContent = 'מאתר…';
+    const fallback = () => { btn.textContent = 'אין גישה למיקום. בחר מהרשימה'; };
+    if (!navigator.geolocation) return fallback();
+    navigator.geolocation.getCurrentPosition(p => { const z = nearestZone(p.coords.latitude, p.coords.longitude); z ? pick(z, 'מכשיר') : fallback(); }, fallback, { timeout: 8000, maximumAge: 300000 });
+  };
+}
+
+
+
+const params = new URLSearchParams(location.search);
+const timeOf = iso => (iso ? new Date(iso) : new Date()).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' });
+const dateTime = iso => iso ? new Date(iso).toLocaleString('he-IL', { day: 'numeric', month: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
+const STATUS_OUT = { 'בסדר': 'תקין', 'זקוק לסיוע': 'זקוק לסיוע' };
+const STATUS_IN = { 'תקין': 'בסדר', 'זקוק לסיוע': 'זקוק לסיוע' };
+const sayLoc = v => (LOCS.find(l => l.v === v) || {}).say || v;
+const store = {
+  get(k) { try { return localStorage.getItem(k) || ''; } catch (e) { return ''; } },
+  set(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
+};
+
+async function apiGet(q) {
+  const res = await fetch(API_URL + '?' + new URLSearchParams(q));
+  const j = await res.json(); if (!j.ok) throw new Error(j.error || 'שגיאה'); return j;
+}
+async function apiPost(body) {
+  const res = await fetch(API_URL, { method: 'POST', body: JSON.stringify(body) });
+  const j = await res.json(); if (!j.ok) throw new Error(j.error || 'שגיאה'); return j;
+}
+
+/* ==================== מסך הדיווח: משפט ==================== */
+const A = { me: null, token: '', loc: '', zone: '', status: '', zoneSrc: '', usedChat: false, fromHome: false,
+            fresh: {}, note: '', thinking: false, sending: false, saved: null };
+
+function slot(key, val, empty) {
+  const cls = !val ? 'empty' : key === 'status' ? (val === 'בסדר' ? 'ok' : 'bad') : 'filled';
+  const shown = key === 'loc' && val ? sayLoc(val) : val;
+  return `<button class="slot ${cls} ${A.fresh[key] ? 'pop' : ''}" data-slot="${key}" ${A.saved ? 'disabled' : ''}>${esc(shown || empty)}</button>`;
+}
+function sentence() {
+  return `<div>אני ${slot('loc', A.loc, 'איפה?')}</div>${A.loc === 'בבסיס' ? '' : `<div>באזור ${slot('zone', A.zone, 'איזה?')}</div>`}<div>והמצב ${slot('status', A.status, 'בסדר?')}</div>`;
+}
+const complete = () => A.loc && A.status && (A.loc === 'בבסיס' || A.zone);
+const missingQ = () => !A.loc ? 'איפה אתה עכשיו?' : (A.loc !== 'בבסיס' && !A.zone) ? 'באיזה יישוב או אזור?' : !A.status ? 'ואתה בסדר?' : '';
+
+async function startReport(token) {
+  try {
+    A.me = await apiGet({ action: 'me', t: token }); A.token = token; renderReport();
+  } catch (e) { app.innerHTML = `<div class="center"><h1>הלינק לא עובד</h1><p>${esc(e.message)}</p></div>`; }
+}
+
+function renderReport() {
+  const { person, event, last } = A.me;
+  const head = `<div class="eyebrow"><span>${esc(person.name)} · ${esc(person.team)}</span>${event ? '<span class="live"><i></i>אירוע פתוח</span>' : '<span>אין אירוע פתוח</span>'}</div>`;
+  if (A.saved) {
+    const help = A.status === 'זקוק לסיוע';
+    app.innerHTML = head + `
+      <div class="done-mark ${help ? 'help' : ''}">✓</div>
+      <div class="sentence" style="margin-top:18px">${sentence()}</div>
+      <div class="done-meta">נשלח ב-${timeOf(A.saved.time)} · המפקד רואה את זה עכשיו</div>
+      ${help ? `<div class="sos">במצב מסכן חיים: <a href="tel:101">מד"א 101</a> · <a href="tel:100">משטרה 100</a></div>` : ''}
+      <div class="spacer"></div>
+      <div class="dock"><button class="link" id="redo">משהו השתנה? לעדכן</button></div>`;
+    $('#redo').onclick = () => { A.saved = null; A.note = 'גע במילה כדי לשנות, או כתוב מה השתנה.'; renderReport(); };
+    return;
+  }
+  const empty = !A.loc && !A.zone && !A.status;
+  app.innerHTML = head + `
+    ${last && empty ? `<div class="last">הדיווח הקודם שלך ב-${timeOf(last.time)}: ${esc(sayLoc(last.location))}${last.zone ? ', ' + esc(last.zone) : ''}</div>` : ''}
+    <div class="sentence">${sentence()}</div>
+    <div class="ai-note ${A.thinking ? 'thinking' : ''}">${A.thinking || A.note ? ico('spark', 'spark') : ''}<span>${A.thinking ? 'מבין…' : A.note}</span></div>
+    ${empty ? `<div class="suggest">
+      <button class="chip" data-say="אני בבסיס, הכל בסדר">בבסיס, הכל בסדר</button>
+      <button class="chip" data-say="אני בבית, הכל בסדר">בבית, הכל בסדר</button>
+      <button class="chip" data-say="אני צריך עזרה">צריך עזרה</button>
+    </div>` : ''}
+    <div class="spacer"></div>
+    <div class="dock">
+      ${complete() ? `<button class="confirm ${A.status === 'זקוק לסיוע' ? 'help' : ''}" id="send" ${A.sending ? 'disabled' : ''}>${A.sending ? 'שולח…' : 'נכון, שלח'}</button>` : ''}
+      <form class="composer" id="cf">
+        <button type="button" class="icon-btn mic" title="דיבור – בשלב הבא">${ico('mic')}</button>
+        <input id="ci" placeholder="${empty ? 'ספר במילים שלך איפה אתה' : 'תקן או הוסף במילים שלך'}" autocomplete="off">
+        <button class="icon-btn send" aria-label="שלח">${ico('send')}</button>
+      </form>
+      <div class="hint">אפשר לכתוב, או לגעת במילה במשפט ולבחור</div>
+    </div>`;
+  A.fresh = {};
+  app.querySelectorAll('[data-slot]').forEach(b => b.onclick = () => openSheet(b.dataset.slot));
+  app.querySelectorAll('[data-say]').forEach(b => b.onclick = () => talk(b.dataset.say));
+  $('#cf').onsubmit = e => { e.preventDefault(); const v = $('#ci').value.trim(); if (v) talk(v); };
+  const send = $('#send'); if (send) send.onclick = submit;
+}
+
+function setLoc(v) {
+  A.loc = v; A.fresh.loc = true;
+  if (v === 'בבסיס' || A.fromHome) { A.zone = ''; A.zoneSrc = ''; A.fromHome = false; }
+  const home = store.get('homeZone');
+  if (v === 'בבית' && !A.zone && ZONES.includes(home)) { A.zone = home; A.zoneSrc = 'בחירה'; A.fromHome = true; A.fresh.zone = true; }
+}
+
+function afterChange(extra = '') {
+  const q = missingQ();
+  A.note = q ? `${extra}<b>${q}</b>` : `${extra}${A.fromHome ? `האזור מהדיווח הקודם שלך. ` : ''}זה נכון? אפשר לגעת במילה כדי לתקן.`;
+}
+
+/* ה-AI. בדמו: פענוח לפי כללים. במערכת: קריאה ל-Agent של היחידה, שמחזיר את אותם שלושה שדות */
+function talk(text) {
+  A.thinking = true; A.usedChat = true; renderReport();
+  setTimeout(() => {
+    const { got, place } = understand(text);
+    A.thinking = false;
+    if (got.loc) setLoc(got.loc);
+    if (got.zone) { A.zone = got.zone; A.zoneSrc = "צ'אט"; A.fromHome = false; A.fresh.zone = true; }
+    if (got.status) { A.status = got.status; A.fresh.status = true; }
+    if (A.loc === 'בבסיס') A.zone = '';
+    const found = Object.keys(got).length;
+    if (!found) A.note = `<b>לא הבנתי.</b> ${missingQ() || 'נסה במילים אחרות, או גע במילה במשפט.'}`;
+    else afterChange(place && got.zone && place !== got.zone ? `${esc(place)} זה אזור ${esc(got.zone)}. ` : '');
+    renderReport();
+  }, 600);
+}
+
+function openSheet(key) {
+  const scrim = document.createElement('div'); scrim.className = 'scrim';
+  let body = '';
+  if (key === 'loc') body = `<h3>איפה אתה?</h3>${LOCS.map(l => `<button class="row-opt ${A.loc === l.v ? 'sel' : ''}" data-v="${l.v}"><span class="g">${ico(l.icon)}</span><span>${l.say}<br><small style="font-weight:500;color:var(--muted);font-size:13px">${l.sub}</small></span></button>`).join('')}`;
+  if (key === 'status') body = `<h3>מה המצב?</h3><button class="row-opt" data-v="בסדר" style="background:var(--ok-bg);color:var(--ok)">אני בסדר</button><button class="row-opt" data-v="זקוק לסיוע" style="background:var(--bad);color:#fff">זקוק לסיוע</button>`;
+  if (key === 'zone') body = zonePicker();
+  scrim.innerHTML = `<div class="sheet"><div class="grab"></div>${body}</div>`;
+  document.body.appendChild(scrim);
+  const close = () => scrim.remove();
+  scrim.onclick = e => { if (e.target === scrim) close(); };
+  const pick = (v, src) => {
+    if (key === 'loc') setLoc(v);
+    else if (key === 'zone') { A.zone = v; A.zoneSrc = src || 'בחירה'; A.fromHome = false; A.fresh.zone = true; }
+    else { A.status = v; A.fresh.status = true; }
+    afterChange(); close(); renderReport();
+  };
+  bindZonePicker(scrim, pick);
+  scrim.querySelectorAll('.zlist [data-v], .row-opt[data-v]').forEach(b => b.onclick = () => pick(b.dataset.v));
+}
+
+async function submit() {
+  A.sending = true; renderReport();
+  try {
+    const j = await apiPost({
+      action: 'report', t: A.token, status: STATUS_OUT[A.status], location: A.loc,
+      zone: A.loc === 'בבסיס' ? '' : A.zone, zoneSource: A.loc === 'בבסיס' ? '' : A.zoneSrc,
+      channel: A.usedChat ? "צ'אט" : 'מסך', note: ''
+    });
+    if (A.loc === 'בבית' && A.zone) store.set('homeZone', A.zone);
+    A.saved = j.saved; A.sending = false; A.note = ''; renderReport();
+  } catch (e) {
+    A.sending = false; A.note = `<b>השליחה נכשלה:</b> ${esc(e.message)}. הדיווח לא נמחק, נסה שוב.`; renderReport();
+  }
+}
+
+/* ==================== דשבורד ==================== */
+const D = { key: '', data: null, eventId: '', loc: '' };
+
+async function startDash(key) {
+  D.key = key; app.className = 'app wide'; document.title = 'תמונת מצב';
+  await loadDash();
+}
+async function loadDash() {
+  try {
+    D.data = await apiGet({ action: 'dash', admin: D.key, event: D.eventId || '' });
+    D.eventId = D.data.eventId; renderDash();
+  } catch (e) { app.innerHTML = `<div class="center"><h1>אין גישה</h1><p>${esc(e.message)}</p></div>`; }
+}
+function summarize(people) {
+  const s = { total: people.length, reported: 0, help: 0, locs: {}, zones: {} };
+  people.forEach(p => {
+    const r = p.report; if (!r) return;
+    s.reported++; if (r.status === 'זקוק לסיוע') s.help++;
+    s.locs[r.location] = (s.locs[r.location] || 0) + 1;
+    if (r.zone) s.zones[r.zone] = (s.zones[r.zone] || 0) + 1;
+  });
+  return s;
+}
+function groupBy(arr, f) { const m = new Map(); arr.forEach(x => { const k = f(x); if (!m.has(k)) m.set(k, []); m.get(k).push(x); }); return m; }
+
+function renderDash() {
+  const { people, events, current } = D.data;
+  const ev = events.find(e => e.id === D.eventId);
+  const isLive = current && current.id === D.eventId;
+  const s = summarize(people);
+  const pct = s.total ? Math.round(100 * s.reported / s.total) : 0;
+  const helpers = people.filter(p => p.report && p.report.status === 'זקוק לסיוע');
+  const missing = people.filter(p => !p.report);
+  const units = groupBy(people, p => p.unit);
+  const zoneRows = Object.entries(s.zones).sort((a, b) => b[1] - a[1]);
+  const zmax = zoneRows.length ? zoneRows[0][1] : 1;
+  const locList = LOCS.map(l => ({ ...l, n: s.locs[l.v] || 0 })).concat(Object.keys(s.locs).filter(k => !LOCS.some(l => l.v === k)).map(k => ({ v: k, say: k, icon: 'pin', n: s.locs[k] })));
+  const inLoc = D.loc ? people.filter(p => p.report && p.report.location === D.loc) : [];
+
+  app.innerHTML = `
+    <div class="d-top">
+      <div><h1>תמונת מצב</h1><p class="sub">${ev ? `נפתח ${dateTime(ev.opened)}${ev.closed ? ' · נסגר ' + dateTime(ev.closed) : ''}${ev.note ? ' · ' + esc(ev.note) : ''}` : 'אין אירועים עדיין'}</p></div>
+      <div class="actions">
+        ${events.length ? `<select id="evSel">${events.map(e => `<option value="${esc(e.id)}" ${e.id === D.eventId ? 'selected' : ''}>${dateTime(e.opened)}${e.note ? ' · ' + esc(e.note) : ''}${current && e.id === current.id ? ' (פתוח)' : ''}</option>`).join('')}</select>` : ''}
+        <button class="btn" id="refresh">רענון</button>
+        <button class="btn" id="csv" ${ev ? '' : 'disabled'}>ייצוא לאקסל</button>
+        ${current ? `<button class="btn danger" id="close">סגירת אירוע</button>` : `<button class="btn dark" id="open">פתיחת אירוע</button>`}
+      </div>
+    </div>
+    ${isLive ? `<div class="banner on"><i></i>אירוע פתוח. שלחו לכולם: "דווחו בלינק האישי".</div>` : (ev ? `<div class="banner off"><i></i>${current ? 'צפייה באירוע קודם.' : 'אין אירוע פתוח. מוצג האירוע האחרון.'}</div>` : '')}
+    ${ev ? `
+    <div class="kpis">
+      <div class="kpi main"><div class="n">${s.reported}<span> / ${s.total}</span></div><div class="l">דיווחו (${pct}%)</div><div class="meter"><i style="width:${pct}%"></i></div></div>
+      <div class="kpi"><div class="n">${s.total - s.reported}</div><div class="l">לא דיווחו</div></div>
+      <div class="kpi ${s.help ? 'bad' : ''}"><div class="n">${s.help}</div><div class="l">זקוקים לסיוע</div></div>
+    </div>
+    ${helpers.length ? `<div class="card alert"><h2>זקוקים לסיוע (${helpers.length})</h2>${helpers.map(p => personRow(p, false)).join('')}</div>` : ''}
+    <div class="card">
+      <h2>איפה כולם</h2>
+      <div class="locs">${locList.map(l => `<button class="loc-tile ${D.loc === l.v ? 'on' : ''}" data-loc="${esc(l.v)}"><span class="g">${ico(l.icon)}</span><span><div class="n">${l.n}</div><div class="l">${esc(l.say)}</div></span></button>`).join('')}</div>
+      ${D.loc ? `<div class="drill">${inLoc.length ? inLoc.map(p => personRow(p, false)).join('') : '<div class="d-empty">אין אנשים כאן.</div>'}</div>` : '<div class="hint" style="text-align:right">הקש על סוג מיקום כדי לראות מי שם.</div>'}
+    </div>
+    <div class="cols">
+      <div class="card">
+        <h2>לפי אזור</h2>
+        ${zoneRows.map(([z, n]) => { const inZ = people.filter(p => p.report && p.report.zone === z); const hz = inZ.filter(p => p.report.status === 'זקוק לסיוע').length;
+          return `<details class="zd"><summary class="zone"><span>${esc(z)}${hz ? ` <span class="pill bad">${hz}</span>` : ''}</span><div class="meter"><i style="width:${100 * n / zmax}%"></i></div><span>${n}</span></summary>${inZ.map(p => personRow(p, false)).join('')}</details>`; }).join('') || '<div class="d-empty">אין דיווחים מחוץ לבסיס.</div>'}
+      </div>
+      <div class="card">
+        <h2>לפי מסגרת</h2>
+        <table><thead><tr><th>מסגרת</th><th>דיווחו</th><th></th><th>סיוע</th></tr></thead><tbody>
+        ${[...units].map(([u, ps]) => {
+          const us = summarize(ps); const up = Math.round(100 * us.reported / us.total);
+          return `<tr class="unit"><td>${esc(u)}</td><td class="num">${us.reported}/${us.total}</td><td class="bar"><div class="meter"><i style="width:${up}%"></i></div></td><td>${us.help ? `<span class="pill bad">${us.help}</span>` : ''}</td></tr>` +
+            [...groupBy(ps, p => p.team)].map(([t, tp]) => { const ts = summarize(tp); const tpc = Math.round(100 * ts.reported / ts.total);
+              return `<tr><td>${esc(t)}</td><td class="num">${ts.reported}/${ts.total}</td><td class="bar"><div class="meter"><i style="width:${tpc}%"></i></div></td><td>${ts.help ? `<span class="pill bad">${ts.help}</span>` : ''}</td></tr>`; }).join('');
+        }).join('')}
+        </tbody></table>
+      </div>
+    </div>
+    <div class="card">
+      <h2>חסרים (${missing.length})</h2>
+      ${missing.length ? [...groupBy(missing, p => p.unit + ' · ' + p.team)].map(([t, ps]) => `
+        <details ${missing.length <= 40 ? 'open' : ''}><summary><span>${esc(t)}</span><span class="pill mut">${ps.length}</span></summary>${ps.map(p => personRow(p, isLive)).join('')}</details>`).join('') : '<div class="d-empty">כולם דיווחו.</div>'}
+    </div>` : `<div class="card center">פתח אירוע כדי להתחיל לאסוף דיווחים.</div>`}
+    <div class="foot">עודכן ב-${timeOf()}</div>`;
+
+  $('#refresh').onclick = loadDash;
+  const sel = $('#evSel'); if (sel) sel.onchange = () => { D.eventId = sel.value; D.loc = ''; loadDash(); };
+  app.querySelectorAll('[data-loc]').forEach(b => b.onclick = () => { D.loc = D.loc === b.dataset.loc ? '' : b.dataset.loc; renderDash(); });
+  const op = $('#open'); if (op) op.onclick = async () => {
+    const note = prompt('פתיחת אירוע. הערה (רשות):', ''); if (note === null) return;
+    op.disabled = true;
+    try { await apiPost({ action: 'open', admin: D.key, note }); D.eventId = ''; await loadDash(); } catch (e) { alert(e.message); op.disabled = false; }
+  };
+  const cl = $('#close'); if (cl) cl.onclick = async () => {
+    if (!confirm('לסגור את האירוע? המצב הנוכחי יישמר בהיסטוריה.')) return;
+    cl.disabled = true;
+    try { await apiPost({ action: 'close', admin: D.key }); await loadDash(); } catch (e) { alert(e.message); cl.disabled = false; }
+  };
+  const csv = $('#csv'); if (csv) csv.onclick = () => exportCsv(people, D.eventId);
+  app.querySelectorAll('[data-proxy]').forEach(b => b.onclick = () => openProxy(people.find(p => p.id === b.dataset.proxy)));
+}
+
+function personRow(p, canProxy) {
+  const r = p.report;
+  return `<div class="person"><div>
+      <div class="who">${esc(p.name)} ${r && r.channel === 'מפקד' ? '<span class="pill mut">דווח ע"י מפקד</span>' : ''}${r && r.status === 'זקוק לסיוע' ? ' <span class="pill bad">זקוק לסיוע</span>' : ''}</div>
+      <div class="meta">${esc(p.team)}${p.commander ? ' · מפקד: ' + esc(p.commander) : ''}${r ? ` · ${esc(sayLoc(r.location))}${r.zone ? ', ' + esc(r.zone) : ''} · ${timeOf(r.time)}` : ''}${r && r.note ? ' · "' + esc(r.note) + '"' : ''}</div>
+    </div>
+    <div class="acts">${p.phone ? `<a href="tel:${esc(p.phone)}">${esc(p.phone)}</a>` : ''}${canProxy ? `<button class="btn" data-proxy="${esc(p.id)}">דווח במקומו</button>` : ''}</div></div>`;
+}
+
+function openProxy(p) {
+  const dlg = $('#proxyDlg'), f = $('#proxyForm');
+  $('#proxyTitle').textContent = 'דיווח במקום ' + p.name;
+  $('#proxyLoc').innerHTML = LOCS.map(l => `<option value="${l.v}">${l.say}</option>`).join('');
+  $('#proxyZone').innerHTML = '<option value="">—</option>' + zoneOptions('');
+  f.reset(); $('#proxyErr').textContent = '';
+  f.onsubmit = async e => {
+    if (e.submitter && e.submitter.value === 'cancel') return;
+    e.preventDefault();
+    const fd = new FormData(f);
+    const body = { action: 'proxy', admin: D.key, id: p.id, status: fd.get('status'), location: fd.get('location'), zone: fd.get('zone'), zoneSource: fd.get('zone') ? 'בחירה' : '', note: fd.get('note') };
+    if (body.location !== 'בבסיס' && !body.zone) { $('#proxyErr').textContent = 'בחר אזור.'; return; }
+    $('#proxySave').disabled = true;
+    try { await apiPost(body); dlg.close(); await loadDash(); }
+    catch (err) { $('#proxyErr').textContent = err.message; }
+    finally { $('#proxySave').disabled = false; }
+  };
+  dlg.showModal();
+}
+
+function exportCsv(people, eventId) {
+  const head = ['שם', 'מדור', 'צוות', 'מפקד ישיר', 'טלפון', 'דיווח', 'מצב', 'מיקום', 'אזור', 'ערוץ', 'זמן', 'הערה'];
+  const q = v => '"' + String(v ?? '').replace(/"/g, '""') + '"';
+  const lines = [head.map(q).join(',')].concat(people.map(p => {
+    const r = p.report || {};
+    return [p.name, p.unit, p.team, p.commander, p.phone, p.report ? 'כן' : 'לא', r.status, r.location, r.zone, r.channel, r.time ? dateTime(r.time) : '', r.note].map(q).join(',');
+  }));
+  const blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = `תמונת-מצב-${eventId}.csv`; a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+}
+
+/* ==================== ניתוב ==================== */
+if (API_URL.startsWith('PASTE')) {
+  app.innerHTML = '<div class="center"><h1>הדף עוד לא מוגדר</h1><p>יש להדביק את כתובת ה-Web App בראש הקובץ (API_URL).</p></div>';
+} else if (params.get('t')) {
+  startReport(params.get('t'));
+} else if (params.get('admin')) {
+  startDash(params.get('admin'));
+} else {
+  app.innerHTML = '<div class="center"><h1>דיווח מצב</h1><p>יש להיכנס דרך הלינק האישי שקיבלת.</p></div>';
+}
+</script>
+</body>
+</html>
